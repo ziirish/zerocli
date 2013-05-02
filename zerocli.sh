@@ -2,7 +2,7 @@
 
 tmpfile=".zerocli.tmp"
 datafile=".zerocli.data"
-server="http://paste.ziirish.info"
+server=""
 
 burn=0
 open=0
@@ -56,16 +56,22 @@ do
         -s|--syntax) syntax=1 ;;
         -p|--post) post=1 ;;
 	    # for options with required arguments, an additional shift is required
-    	-e|--expire) expire="$2" ; shift ;;
-        -f|--file) file="$2" ; shift ;;
-        -g|--get) get="$2" ; shift ;;
-        -S|--server) server="$2" ; shift ;;
+		-e|--expire) expire=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
+		-f|--file) file=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
+		-g|--get) get=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
+		-S|--server) server=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
 	    (--) shift; break ;;
     	(-*) echo "$0: error - unrecognized option $1" 1>&2; usage;;
 	    (*) break ;;
     esac
     shift
 done
+
+[ -z "$server" -a "$get" = "0" ] && {
+	echo "Error: You must specify a server"
+	echo "You can set it in the script or use the -S argument"
+	exit 1
+}
 
 function post() {
 	[ -z "$file" ] && {
@@ -94,38 +100,36 @@ function post() {
 	key=$(grep "key:" $datafile | sed "s/^key://")
 	data=$(grep "data:" $datafile | sed "s/^data://")
 
-	cat <<EOF
-
-result:
-EOF
-	cat $datafile
-
 	rm $datafile
 
-	#echo "$key"
+	encode=$(perl -MURI::Escape -e 'print uri_escape($ARGV[0]);' "$data")
+    params="data=$encode&burnafterreading=$burn&expire=$expire&opendiscussion=$open&syntaxcoloring=$syntax"
 
-	req="{\"burnafterreading\":\"$burn\",\"data\":\"$data\",\"expire\":\"$expire\",\"opendiscussion\":\"$open\",\"syntaxcoloring\":\"$syntax\"}"
+	output=$(curl -s                                          \
+		 -H "Content-Type: application/x-www-form-urlencoded" \
+		 -X POST                                              \
+		 -d "$params"                                         \
+		 $server)
 
-	echo $req
+	status=$(echo $output | python -m json.tool | grep status | cut -d: -f2 | sed "s/ //g");
+	[ $status -ne 0 ] && {
+		echo $output | python -m json.tool
+		exit 4
+	}
+	id=$(echo $output | python -m json.tool | grep id | cut -d: -f2 | sed "s/ //g;s/,//g;s/\"//g");
+	deletetoken=$(echo $output | python -m json.tool | grep deletetoken | cut -d: -f2 | sed "s/ //g;s/,//g;s/\"//g");
 
-exit 0
-
-	curl -i                                  \
-		 -v                                  \
-		 -H "Accept: application/json"       \
-		 -H "Content-type: application/json" \
-		 -X POST                             \
-		 -d "$req"                           \
-		 $server >output
+	echo "Your data have been successfully pasted"
+	echo "url: $server?$id#$key"
+	echo "delete url: $server?pasteid=$id&deletetoken=$deletetoken"
 
 	exit 0
 }
 
 function get() {
 
-	clean=$(echo $get | sed "s/^.//;s/.$//")
-	key=$(echo $clean | sed -r "s/^.*\?.*#(.*)$/\1/")
-	str=$(wget -q "$clean" -O - | grep "cipherdata")
+	key=$(echo $get | sed -r "s/^.*\?.*#(.*)$/\1/")
+	str=$(wget -q "$get" -O - | grep "cipherdata")
 	data=$(echo $str | grep ">\[.*\]<")
 	[ -z "$data" ] && {
 		echo "Paste does not exist or is expired"
