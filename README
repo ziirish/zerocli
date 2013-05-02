@@ -1,10 +1,7 @@
 ZeroCli is a simple cli for ZeroBin
 
 It requires rhino to execute javascript in command line (as the encryption is
-one client-side) : https://developer.mozilla.org/en-US/docs/Rhino
-
-TODO:
-	- finish the POST
+on client-side) : https://developer.mozilla.org/en-US/docs/Rhino
 
 usage:
         -b, --burn            burn after reading
@@ -18,15 +15,3 @@ usage:
 
 available time settings:
 5min,10min,1hour,1day,1week,1month,1year,never
-
-Example:
-$ ./zerocli.sh --get="http://myserver.tld/?51a7e2fdaba81d23#GkWVhyg4bvwi3rQzkXSvW4pPIByOx8C1NzC+QVtTKZAs=" | tee -a pouet
-gfgfdgfd                                                
-gfdgfd
-fdsgf
-fdsfds
-$ cat pouet 
-gfgfdgfd
-gfdgfd
-fdsgf
-fdsfds

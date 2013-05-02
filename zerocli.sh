@@ -1,5 +1,6 @@
 #!/bin/bash
 
+version="0.1"
 tmpfile=".zerocli.tmp"
 datafile=".zerocli.data"
 server=""
@@ -11,6 +12,38 @@ expire=1week
 get=0
 post=1
 file=""
+
+# DO NOT EDIT THE FOLLOWING!
+package=""
+
+# Check for rhino
+rhino=$(which rhino)
+[ ! -x "$rhino" ] && {
+	echo "Please install rhino first"
+	echo "https://developer.mozilla.org/en-US/docs/Rhino"
+	exit 1
+}
+
+function unpak() {
+	[ -z "$package" ] && return
+    required="js/zerocli.js js/base64.js js/flate.js js/jquery.js js/rawdeflate.js js/rawinflate.js js/sjcl.js main.js VERSION"
+    br=0
+    for f in $required; do
+        [ ! -f $f ] && {
+            rm -rf main.js js &>/dev/null
+            br=1
+            break
+		}
+    done
+    v=$(cat VERSION 2>/dev/null)
+    [ $br -eq 0 -a "$v" = "$version" ] && return
+    # if $br = 1 or version missmatch at least 1 file is missing so we unpack the archive
+    echo "$package" | base64 -d >package.tgz
+    tar xzf package.tgz
+    rm package.tgz
+}
+
+unpak
 
 function usage() {
 	cat <<EOF
@@ -81,7 +114,7 @@ function post() {
 
 	testfile $file
 
-	rhino main.js put $file 2>&1 >$datafile &
+	$rhino main.js put $file 2>&1 >$datafile &
 	pid=$!
 
 	dot=".  "
@@ -96,6 +129,8 @@ function post() {
 	done
 
 	echo -e -n "\r                                                                   \r"
+
+	[ -f $tmpfile ] && rm $tmpfile
 
 	key=$(grep "key:" $datafile | sed "s/^key://")
 	data=$(grep "data:" $datafile | sed "s/^data://")
@@ -136,12 +171,9 @@ function get() {
 		exit 3
 	}
 	clean=$(echo $str | sed -r "s/^.*(\[.*)$/\1/;s/^(.*\]).*$/\1/")
-#	echo "str: $clean"
 	data=$(echo $clean | sed -r "s/^.*data\":(.*),\"meta.*$/\1/;s/\\\\//g;s/^.//;s/.$//")
-#	echo "data: $data"
-#	echo "key: $key"
 
-    rhino main.js get "$key" "$data" 2>&1 >$datafile &                                                                                                                                                                                    
+    $rhino main.js get "$key" "$data" 2>&1 >$datafile &                                                                                                                                                                                    
     pid=$!
 
     dot=".  "
@@ -169,5 +201,3 @@ function get() {
 exit 0
 
 # DO NOT EDIT THE FOLLOWING!
-SRC="js"
-[ -d "$SRC" ] || mkdir -p $SRC
