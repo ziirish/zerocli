@@ -3,6 +3,8 @@
 version="0.2"
 tmpfile="/tmp/.zerocli.tmp"
 datafile="/tmp/.zerocli.data"
+curloutput="/tmp/.zerocli.curl.out"
+curlerr="/tmp/.zerocli.curl.err"
 server=""
 me=$(basename $0)
 path=$(dirname $0)
@@ -62,6 +64,13 @@ rhino=$(which rhino)
 [ ! -x "$rhino" ] && {
 	echo "Please install rhino first"
 	echo "https://developer.mozilla.org/en-US/docs/Rhino"
+	exit 1
+}
+
+# Check for curl
+curl=$(which curl)
+[ ! -x "$curl" ] && {
+	echo "Please install curl"
 	exit 1
 }
 
@@ -166,6 +175,51 @@ done
 	exit 1
 }
 
+function mycurl() {
+	url=$1
+	data=$2
+	output=$($curl -i                                         \
+		 -H "Content-Type: application/x-www-form-urlencoded" \
+		 -X POST                                              \
+		 -d "$data"                                           \
+		 -o $curloutput                                       \
+		 --stderr $curlerr                                    \
+		 $url)
+
+	ret=$?
+	[ $ret -ne 0 ] && {
+		echo "Error: curl returned $ret"
+		echo "Please refer to curl manpage for mor details"
+		cat $curlerr
+		rm $curlerr $curloutput &>/dev/null
+		exit $ret
+	}
+
+	code=$(grep -e "^HTTP/1\." $curloutput | awk '{print $2;}')
+	case $code in
+		200)
+			# Content-Type: application/json
+			ct=$(grep "^Content-Type:" $curloutput | awk '{print $2;}' | perl -pe "s/\r\n$//")
+			[ -z "$ct" -o "$ct" != "application/json" ] && {
+				echo "Error: server returned code $code but with content-type '$ct' where 'application/json' is expected"
+				rm $curlerr $curloutput &>/dev/null
+				exit 6
+			}
+			echo "OK server returned code 200" ;;
+		302|301)
+			redirect=$(grep "^Location:" $curloutput | awk '{print $2;}' | perl -pe "s/\r\n$//")
+			echo "Got a redirection $code to '$redirect'"
+			echo "retrying..."
+			mycurl "$redirect" "$data"
+			;;
+		*) 
+			echo "Error: server returned $code"
+			rm $curlerr $curloutput &>/dev/null
+			exit 5
+			;;
+	esac
+}
+
 function post() {
 	[ -z "$file" ] && {
 		cat >$tmpfile <&0
@@ -173,6 +227,8 @@ function post() {
 	}
 
 	testfile $file
+
+	echo
 
 	$rhino "$path/main.js" "$path/" put $file 2>&1 >$datafile &
 	pid=$!
@@ -188,7 +244,17 @@ function post() {
 		sleep 1
 	done
 
-	echo -e -n "\r                                                                   \r"
+	wait $pid
+	ret=$?
+	[ $ret -ne 0 ] && {
+		echo -e "\rEncrypting data... [failed]"
+		echo "Error: rhino returned $ret"
+		cat $datafile
+		rm $datafile
+		exit $ret
+	}
+
+	echo -e "\rEncrypting data... [done]"
 
 	[ -f $tmpfile ] && rm $tmpfile
 
@@ -200,26 +266,26 @@ function post() {
 	encode=$(perl -MURI::Escape -e 'print uri_escape($ARGV[0]);' "$data")
 	params="data=$encode&burnafterreading=$burn&expire=$expire&opendiscussion=$open&syntaxcoloring=$syntax"
 
-	echo $params
+	mycurl "$server" "$params"
 
-	output=$(curl -s                                          \
-		 -H "Content-Type: application/x-www-form-urlencoded" \
-		 -X POST                                              \
-		 -d "$params"                                         \
-		 $server)
-
-	status=$(echo $output | python -m json.tool 2>/dev/null | grep status | cut -d: -f2 | sed "s/ //g");
+	status=$(tail -1 $curloutput | python -m json.tool 2>/dev/null | grep status | cut -d: -f2 | sed "s/ //g");
 	[ -z "$status" -o "$status" != "0" ] && {
 		echo "something went wrong..."
-		echo $output
+		cat $curloutput
+		rm $curlerr $curloutput &>/dev/null
 		exit 4
 	}
-	id=$(echo $output | python -m json.tool | grep id | cut -d: -f2 | sed "s/ //g;s/,//g;s/\"//g");
-	deletetoken=$(echo $output | python -m json.tool | grep deletetoken | cut -d: -f2 | sed "s/ //g;s/,//g;s/\"//g");
+	id=$(tail -1 $curloutput | python -m json.tool | grep id | cut -d: -f2 | sed "s/ //g;s/,//g;s/\"//g");
+	deletetoken=$(tail -1 $curloutput | python -m json.tool | grep deletetoken | cut -d: -f2 | sed "s/ //g;s/,//g;s/\"//g");
+
+	# add a / in server if not present
+	server=$(echo $server | sed -r "s|^(.+[^/])$|\1/|")
 
 	echo "Your data have been successfully pasted"
 	echo "url: $server?$id#$key"
 	echo "delete url: $server?pasteid=$id&deletetoken=$deletetoken"
+
+	rm $curlerr $curloutput &>/dev/null
 
 	exit 0
 }
@@ -250,7 +316,17 @@ function get() {
 		sleep 1
 	done
 
-	echo -e -n "\r                                                        \r" >&2
+	wait $pid
+	ret=$?
+	[ $ret -ne 0 ] && {
+		echo -e "\rDecrypting data... [failed]" >&2
+		echo "Error: rhino returned $ret" >&2
+		cat $datafile >&2
+		rm $datafile
+		exit $ret
+	}
+
+	echo -e "\rDecrypting data... [done]" >&2
 
 	cat $datafile
 	rm $datafile
