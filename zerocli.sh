@@ -26,21 +26,21 @@ rhino=$(which rhino)
 
 function unpak() {
 	[ -z "$package" ] && return
-    required="js/zerocli.js js/base64.js js/flate.js js/jquery.js js/rawdeflate.js js/rawinflate.js js/sjcl.js main.js VERSION"
-    br=0
-    for f in $required; do
-        [ ! -f $f ] && {
-            rm -rf main.js js &>/dev/null
-            br=1
-            break
+	required="js/zerocli.js js/base64.js js/flate.js js/jquery.js js/rawdeflate.js js/rawinflate.js js/sjcl.js main.js VERSION"
+	br=0
+	for f in $required; do
+	    [ ! -f $f ] && {
+	        rm -rf main.js js &>/dev/null
+	        br=1
+	        break
 		}
-    done
-    v=$(cat VERSION 2>/dev/null)
-    [ $br -eq 0 -a "$v" = "$version" ] && return
-    # if $br = 1 or version missmatch at least 1 file is missing so we unpack the archive
-    echo "$package" | base64 -d >package.tgz
-    tar xzf package.tgz
-    rm package.tgz
+	done
+	v=$(cat VERSION 2>/dev/null)
+	[ $br -eq 0 -a "$v" = "$version" ] && return
+	# if $br = 1 or version missmatch at least 1 file is missing so we unpack the archive
+	echo "$package" | base64 -d >package.tgz
+	tar xzf package.tgz
+	rm package.tgz
 }
 
 unpak
@@ -75,8 +75,8 @@ function testfile() {
 
 # options may be followed by one colon to indicate they have a required argument
 options=$(getopt -o pbose:f:g:S: -l put,burn,open,syntax,expire:,file:,get:,server: -- "$@") || {
-    # something went wrong, getopt will put out an error message for us
-    usage
+	# something went wrong, getopt will put out an error message for us
+	usage
 }
 
 set -- $options
@@ -99,21 +99,21 @@ fi
 
 while [ $# -gt 0 ]
 do
-    case $1 in
+	case $1 in
 	    -b|--burn) burn=1 ;;
-    	-o|--open) open=1  ;;
-        -s|--syntax) syntax=1 ;;
-        -p|--post) post=1 ;;
+		-o|--open) open=1  ;;
+	    -s|--syntax) syntax=1 ;;
+	    -p|--post) post=1 ;;
 	    # for options with required arguments, an additional shift is required
 		-e|--expire) expire=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
 		-f|--file) file=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
 		-g|--get) get=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
 		-S|--server) server=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
 	    (--) shift; break ;;
-    	(-*) echo "$0: error - unrecognized option $1" 1>&2; usage;;
+		(-*) echo "$0: error - unrecognized option $1" 1>&2; usage;;
 	    (*) break ;;
-    esac
-    shift
+	esac
+	shift
 done
 
 [ -z "$server" -a "$get" = "0" ] && {
@@ -154,7 +154,7 @@ function post() {
 	rm $datafile
 
 	encode=$(perl -MURI::Escape -e 'print uri_escape($ARGV[0]);' "$data")
-    params="data=$encode&burnafterreading=$burn&expire=$expire&opendiscussion=$open&syntaxcoloring=$syntax"
+	params="data=$encode&burnafterreading=$burn&expire=$expire&opendiscussion=$open&syntaxcoloring=$syntax"
 
 	output=$(curl -s                                          \
 		 -H "Content-Type: application/x-www-form-urlencoded" \
@@ -189,21 +189,21 @@ function get() {
 	clean=$(echo $str | sed -r "s/^.*(\[.*)$/\1/;s/^(.*\]).*$/\1/")
 	data=$(echo $clean | sed -r "s/^.*data\":(.*),\"meta.*$/\1/;s/\\\\//g;s/^.//;s/.$//")
 
-    $rhino main.js get "$key" "$data" 2>&1 >$datafile &                                                                                                                                                                                    
-    pid=$!
+	$rhino main.js get "$key" "$data" 2>&1 >$datafile &
+	pid=$!
 
-    dot=".  "
-    while ps $pid &>/dev/null; do
-        echo -n -e "\rDecrypting data$dot" >&2
-        case $dot in
-            ".  ") dot=".. " ;;
-            ".. ") dot="..." ;;
-            "...") dot=".  " ;;
-        esac
-        sleep 1
-    done
+	dot=".  "
+	while ps $pid &>/dev/null; do
+	    echo -n -e "\rDecrypting data$dot" >&2
+	    case $dot in
+	        ".  ") dot=".. " ;;
+	        ".. ") dot="..." ;;
+	        "...") dot=".  " ;;
+	    esac
+	    sleep 1
+	done
 
-    echo -e -n "\r                                                        \r" >&2
+	echo -e -n "\r                                                        \r" >&2
 
 	cat $datafile
 	rm $datafile
