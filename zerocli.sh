@@ -29,10 +29,10 @@ function unpak() {
 	required="js/zerocli.js js/base64.js js/flate.js js/jquery.js js/rawdeflate.js js/rawinflate.js js/sjcl.js main.js VERSION"
 	br=0
 	for f in $required; do
-	    [ ! -f $f ] && {
-	        rm -rf main.js js &>/dev/null
-	        br=1
-	        break
+		[ ! -f $f ] && {
+			rm -rf main.js js &>/dev/null
+			br=1
+			break
 		}
 	done
 	v=$(cat VERSION 2>/dev/null)
@@ -100,18 +100,18 @@ fi
 while [ $# -gt 0 ]
 do
 	case $1 in
-	    -b|--burn) burn=1 ;;
-		-o|--open) open=1  ;;
-	    -s|--syntax) syntax=1 ;;
-	    -p|--post) post=1 ;;
-	    # for options with required arguments, an additional shift is required
+		-b|--burn) burn=1 ;;
+		-o|--open) open=1 ;;
+		-s|--syntax) syntax=1 ;;
+		-p|--post) post=1 ;;
+		# for options with required arguments, an additional shift is required
 		-e|--expire) expire=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
 		-f|--file) file=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
 		-g|--get) get=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
 		-S|--server) server=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
-	    (--) shift; break ;;
+		(--) shift; break ;;
 		(-*) echo "$0: error - unrecognized option $1" 1>&2; usage;;
-	    (*) break ;;
+		(*) break ;;
 	esac
 	shift
 done
@@ -194,13 +194,13 @@ function get() {
 
 	dot=".  "
 	while ps $pid &>/dev/null; do
-	    echo -n -e "\rDecrypting data$dot" >&2
-	    case $dot in
-	        ".  ") dot=".. " ;;
-	        ".. ") dot="..." ;;
-	        "...") dot=".  " ;;
-	    esac
-	    sleep 1
+		echo -n -e "\rDecrypting data$dot" >&2
+		case $dot in
+			".  ") dot=".. " ;;
+			".. ") dot="..." ;;
+			"...") dot=".  " ;;
+		esac
+		sleep 1
 	done
 
 	echo -e -n "\r                                                        \r" >&2
