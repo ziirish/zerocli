@@ -1,39 +1,45 @@
 RawDeflate = {};
 
-load('js/sjcl.js');
-load('js/base64.js');
-load('js/rawinflate.js');
-load('js/rawdeflate.js');
-//load('js/jquery.js');
-load('js/zerocli.js');
-
 l = arguments.length;
 
 if (l < 1) {
+	print('Missing path!');
+	quit(1);
+}
+
+path = arguments[0];
+
+load(path+'js/sjcl.js');
+load(path+'js/base64.js');
+load(path+'js/rawinflate.js');
+load(path+'js/rawdeflate.js');
+load(path+'js/zerocli.js');
+
+if (l < ) {
 	print('Missing method!');
 	quit(2);
 }
 
-method = arguments[0];
+method = arguments[1];
 
 if (method == "put") {
-	if (l != 2) {
+	if (l != 3) {
 		print('Missing filename!');
-		quit(1);
+		quit(3);
 	}
 
-	filename = arguments[1];
+	filename = arguments[2];
 	t = readFile(filename);
 	//print('data: ' + t);
 	encrypt_data(t);
 } else if (method == "get") {
-	if (l != 3) {
+	if (l != 4) {
 		print('Missing key and/or message');
-		quit(1);
+		quit(4);
 	}
 
-	key = arguments[1];
-	data = arguments[2];
+	key = arguments[2];
+	data = arguments[3];
 
 	/*
 	print('key: '+key);

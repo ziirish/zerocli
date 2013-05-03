@@ -1,9 +1,13 @@
 #!/bin/bash
 
-version="0.1"
-tmpfile=".zerocli.tmp"
-datafile=".zerocli.data"
+version="0.2"
+tmpfile="/tmp/.zerocli.tmp"
+datafile="/tmp/.zerocli.data"
 server=""
+me=$(basename $0)
+path=$(dirname $0)
+workingdir=""
+config=""
 
 burn=0
 open=0
@@ -13,7 +17,44 @@ get=0
 post=1
 file=""
 
-# DO NOT EDIT THE FOLLOWING!
+if [ -d "$path" -a -e "$path/zerocli.conf" ]; then
+	. "$path/zerocli.conf"
+fi
+
+if [ ! -z "$config" -a -e "$config" ]; then
+	. "$config"
+fi
+
+if [ -f "$HOME/.zeroclirc" ]; then
+	. "$HOME/.zeroclirc"
+fi
+
+if [ ! -z "$workingdir" ]; then
+	[ ! -d "$workingdir" ] && {
+		cat <<EOF
+Error: '$workingdir' no such directory
+EOF
+		exit 1
+	}   
+	path=$workingdir
+else
+	if [ "$path" != "." ]; then
+		echo $path | grep -e "^/" &>/dev/null || {
+			path=$(which $me)
+			[ -z "$path" ] && {
+				cat <<EOF
+Error: no working dir found
+You can solve this problem either by calling this program with an absolute path
+or by adding the script to your PATH or by setting up the 'workingdir' variable
+into the script or conf file
+EOF
+				exit 1
+			}   
+		}   
+	fi  
+fi
+
+# DO NOT EDIT THE FOLLOWING LINE!
 package=""
 
 # Check for rhino
@@ -29,8 +70,8 @@ function unpak() {
 	required="js/zerocli.js js/base64.js js/flate.js js/jquery.js js/rawdeflate.js js/rawinflate.js js/sjcl.js main.js VERSION"
 	br=0
 	for f in $required; do
-		[ ! -f $f ] && {
-			rm -rf main.js js &>/dev/null
+		[ ! -f "$path/$f" ] && {
+			rm -rf "$path/main.js" "$path/js" "$path/VERSION" &>/dev/null
 			br=1
 			break
 		}
@@ -38,9 +79,12 @@ function unpak() {
 	v=$(cat VERSION 2>/dev/null)
 	[ $br -eq 0 -a "$v" = "$version" ] && return
 	# if $br = 1 or version missmatch at least 1 file is missing so we unpack the archive
+	sav=$PWD
+	cd $path
 	echo "$package" | base64 -d >package.tgz
 	tar xzf package.tgz
 	rm package.tgz
+	cd $sav
 }
 
 unpak
@@ -130,7 +174,7 @@ function post() {
 
 	testfile $file
 
-	$rhino main.js put $file 2>&1 >$datafile &
+	$rhino "$path/main.js" "$path/" put $file 2>&1 >$datafile &
 	pid=$!
 
 	dot=".  "
@@ -156,15 +200,18 @@ function post() {
 	encode=$(perl -MURI::Escape -e 'print uri_escape($ARGV[0]);' "$data")
 	params="data=$encode&burnafterreading=$burn&expire=$expire&opendiscussion=$open&syntaxcoloring=$syntax"
 
+	echo $params
+
 	output=$(curl -s                                          \
 		 -H "Content-Type: application/x-www-form-urlencoded" \
 		 -X POST                                              \
 		 -d "$params"                                         \
 		 $server)
 
-	status=$(echo $output | python -m json.tool | grep status | cut -d: -f2 | sed "s/ //g");
-	[ $status -ne 0 ] && {
-		echo $output | python -m json.tool
+	status=$(echo $output | python -m json.tool 2>/dev/null | grep status | cut -d: -f2 | sed "s/ //g");
+	[ -z "$status" -o "$status" != "0" ] && {
+		echo "something went wrong..."
+		echo $output
 		exit 4
 	}
 	id=$(echo $output | python -m json.tool | grep id | cut -d: -f2 | sed "s/ //g;s/,//g;s/\"//g");
@@ -189,7 +236,7 @@ function get() {
 	clean=$(echo $str | sed -r "s/^.*(\[.*)$/\1/;s/^(.*\]).*$/\1/")
 	data=$(echo $clean | sed -r "s/^.*data\":(.*),\"meta.*$/\1/;s/\\\\//g;s/^.//;s/.$//")
 
-	$rhino main.js get "$key" "$data" 2>&1 >$datafile &
+	$rhino "$path/main.js" "$path/" get "$key" "$data" 2>&1 >$datafile &
 	pid=$!
 
 	dot=".  "
@@ -215,5 +262,3 @@ function get() {
 [ "$post" = "1" ] && post
 
 exit 0
-
-# DO NOT EDIT THE FOLLOWING!
