@@ -81,6 +81,22 @@ options=$(getopt -o pbose:f:g:S: -l put,burn,open,syntax,expire:,file:,get:,serv
 
 set -- $options
 
+if [ "$(getopt --version)" = " --" ]; then
+	# bsd getopt - skip configuration declarations
+	nb_delims_to_remove=2
+	while [ $# -gt 0 ]; do
+		if [ $1 = "--" ]; then
+			shift
+			nb_delims_to_remove=$(expr $nb_delims_to_remove - 1)
+			if [ $nb_delims_to_remove -lt 1 ]; then
+				break
+			fi
+		fi
+
+		shift
+	done
+fi
+
 while [ $# -gt 0 ]
 do
     case $1 in
