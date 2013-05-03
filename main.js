@@ -15,7 +15,7 @@ load(path+'js/rawinflate.js');
 load(path+'js/rawdeflate.js');
 load(path+'js/zerocli.js');
 
-if (l < ) {
+if (l < 2) {
 	print('Missing method!');
 	quit(2);
 }
