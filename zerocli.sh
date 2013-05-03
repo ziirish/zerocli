@@ -98,6 +98,10 @@ function unpak() {
 
 unpak
 
+function mylog() {
+	echo "[+] $*" >&2
+}
+
 function usage() {
 	cat <<EOF
 usage:
@@ -120,7 +124,7 @@ function testfile() {
 	file=$1
 	size=$(ls -l $file | awk '{print $5; }')
 	test "$size" = "0" && {
-		echo "Could not send empty file"
+		mylog "Could not send empty file"
 		[ -f $tmpfile ] && rm $tmpfile
 		exit 2
 	}
@@ -170,27 +174,35 @@ do
 done
 
 [ -z "$server" -a "$get" = "0" ] && {
-	echo "Error: You must specify a server"
-	echo "You can set it in the script or use the -S argument"
+	mylog "Error: You must specify a server"
+	mylog "You can set it in the script or use the -S argument"
 	exit 1
 }
 
 function mycurl() {
 	url=$1
 	data=$2
-	output=$($curl -i                                         \
-		 -H "Content-Type: application/x-www-form-urlencoded" \
-		 -X POST                                              \
-		 -d "$data"                                           \
-		 -o $curloutput                                       \
-		 --stderr $curlerr                                    \
-		 $url)
-
-	ret=$?
+	if [ -z "$data" ]; then
+		output=$($curl -i                                         \
+			 -o $curloutput                                       \
+			 --stderr $curlerr                                    \
+			 $url)
+		ret=$?
+	else
+		output=$($curl -i                                         \
+			 -H "Content-Type: application/x-www-form-urlencoded" \
+			 -X POST                                              \
+			 -d "$data"                                           \
+			 -o $curloutput                                       \
+			 --stderr $curlerr                                    \
+			 $url)
+		ret=$?
+	fi
+		
 	[ $ret -ne 0 ] && {
-		echo "Error: curl returned $ret"
-		echo "Please refer to curl manpage for mor details"
-		cat $curlerr
+		mylog "Error: curl returned $ret"
+		mylog "Please refer to curl manpage for mor details"
+		cat $curlerr >&2
 		rm $curlerr $curloutput &>/dev/null
 		exit $ret
 	}
@@ -198,22 +210,23 @@ function mycurl() {
 	code=$(grep -e "^HTTP/1\." $curloutput | awk '{print $2;}')
 	case $code in
 		200)
+			[ -z "$data" ] && return
 			# Content-Type: application/json
 			ct=$(grep "^Content-Type:" $curloutput | awk '{print $2;}' | perl -pe "s/\r\n$//")
 			[ -z "$ct" -o "$ct" != "application/json" ] && {
-				echo "Error: server returned code $code but with content-type '$ct' where 'application/json' is expected"
+				mylog "Error: server returned code $code but with content-type '$ct' where 'application/json' is expected"
 				rm $curlerr $curloutput &>/dev/null
 				exit 6
 			}
-			echo "OK server returned code 200" ;;
+			mylog "OK server returned code 200" ;;
 		302|301)
 			redirect=$(grep "^Location:" $curloutput | awk '{print $2;}' | perl -pe "s/\r\n$//")
-			echo "Got a redirection $code to '$redirect'"
-			echo "retrying..."
+			mylog "Got a redirection $code to '$redirect'"
+			mylog "retrying..."
 			mycurl "$redirect" "$data"
 			;;
 		*) 
-			echo "Error: server returned $code"
+			mylog "Error: server returned $code"
 			rm $curlerr $curloutput &>/dev/null
 			exit 5
 			;;
@@ -228,14 +241,14 @@ function post() {
 
 	testfile $file
 
-	echo
+	echo >&2
 
 	$rhino "$path/main.js" "$path/" put $file 2>&1 >$datafile &
 	pid=$!
 
 	dot=".  "
 	while ps $pid &>/dev/null; do
-		echo -n -e "\rEncrypting data$dot"
+		echo -n -e "\rEncrypting data$dot" >&2
 		case $dot in
 			".  ") dot=".. " ;;
 			".. ") dot="..." ;;
@@ -247,14 +260,14 @@ function post() {
 	wait $pid
 	ret=$?
 	[ $ret -ne 0 ] && {
-		echo -e "\rEncrypting data... [failed]"
-		echo "Error: rhino returned $ret"
-		cat $datafile
+		echo -e "\rEncrypting data... [failed]" >&2
+		mylog "Error: rhino returned $ret"
+		cat $datafile >&2
 		rm $datafile
 		exit $ret
 	}
 
-	echo -e "\rEncrypting data... [done]"
+	echo -e "\rEncrypting data... [done]" >&2
 
 	[ -f $tmpfile ] && rm $tmpfile
 
@@ -270,8 +283,8 @@ function post() {
 
 	status=$(tail -1 $curloutput | python -m json.tool 2>/dev/null | grep status | cut -d: -f2 | sed "s/ //g");
 	[ -z "$status" -o "$status" != "0" ] && {
-		echo "something went wrong..."
-		cat $curloutput
+		mylog "something went wrong..."
+		cat $curloutput >&2
 		rm $curlerr $curloutput &>/dev/null
 		exit 4
 	}
@@ -293,10 +306,13 @@ function post() {
 function get() {
 
 	key=$(echo $get | sed -r "s/^.*\?.*#(.*)$/\1/")
-	str=$(wget -q "$get" -O - | grep "cipherdata")
+	mycurl "$get"
+	str=$(grep "cipherdata" $curloutput)
+	rm $curlerr $curloutput &>/dev/null
+#	str=$(wget -q "$get" -O - | grep "cipherdata")
 	data=$(echo $str | grep ">\[.*\]<")
 	[ -z "$data" ] && {
-		echo "Paste does not exist or is expired"
+		mylog "Paste does not exist or is expired"
 		exit 3
 	}
 	clean=$(echo $str | sed -r "s/^.*(\[.*)$/\1/;s/^(.*\]).*$/\1/")
@@ -320,7 +336,7 @@ function get() {
 	ret=$?
 	[ $ret -ne 0 ] && {
 		echo -e "\rDecrypting data... [failed]" >&2
-		echo "Error: rhino returned $ret" >&2
+		mylog "Error: rhino returned $ret"
 		cat $datafile >&2
 		rm $datafile
 		exit $ret
