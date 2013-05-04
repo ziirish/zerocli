@@ -17,6 +17,7 @@ syntax=0
 expire=1week
 get=0
 post=1
+quiet=0
 file=""
 
 if [ -d "$path" -a -e "$path/zerocli.conf" ]; then
@@ -89,22 +90,26 @@ function unpak() {
 	[ $br -eq 0 -a "$v" = "$version" ] && return
 	# if $br = 1 or version missmatch at least 1 file is missing so we unpack the archive
 	sav=$PWD
-	cd $path
+	cd $path || exit $?
 	echo "$package" | base64 -d >package.tgz
 	tar xzf package.tgz
 	rm package.tgz
 	cd $sav
 }
 
-unpak
-
 function mylog() {
-	echo "[+] $*" >&2
+	[ $quiet -ne 1 ] && echo "[i] $*" >&2
+}
+
+function myerror() {
+	echo "[e] $*" >&2
 }
 
 function usage() {
 	cat <<EOF
 usage:
+	-c, --config <file>   use this configuration file
+	-q, --quiet           do not display logs
 	-b, --burn            burn after reading
 	-o, --open            open discussion
 	-s, --syntax          syntax coloring
@@ -124,14 +129,14 @@ function testfile() {
 	file=$1
 	size=$(ls -l $file | awk '{print $5; }')
 	test "$size" = "0" && {
-		mylog "Could not send empty file"
+		myerror "Could not send empty file"
 		[ -f $tmpfile ] && rm $tmpfile
 		exit 2
 	}
 }
 
 # options may be followed by one colon to indicate they have a required argument
-options=$(getopt -o pbose:f:g:S: -l put,burn,open,syntax,expire:,file:,get:,server: -- "$@") || {
+options=$(getopt -o pqbose:f:g:S: -l put,quiet,burn,open,syntax,expire:,file:,get:,server:,config: -- "$@") || {
 	# something went wrong, getopt will put out an error message for us
 	usage
 }
@@ -157,6 +162,7 @@ fi
 while [ $# -gt 0 ]
 do
 	case $1 in
+		-q|--quiet) quiet=1 ;;
 		-b|--burn) burn=1 ;;
 		-o|--open) open=1 ;;
 		-s|--syntax) syntax=1 ;;
@@ -166,16 +172,27 @@ do
 		-f|--file) file=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
 		-g|--get) get=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
 		-S|--server) server=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
+		-c|--config) 
+			config=$(echo $2 | sed "s/^.//;s/.$//")
+			shift
+			[ ! -e "$config" ] && {
+				myerror "Error: '$config' does not exist"
+				exit
+			}
+			. $"config"
+			;;
 		(--) shift; break ;;
-		(-*) echo "$0: error - unrecognized option $1" 1>&2; usage;;
+		(-*) myerror "$0: error - unrecognized option $1"; usage;;
 		(*) break ;;
 	esac
 	shift
 done
 
+unpak
+
 [ -z "$server" -a "$get" = "0" ] && {
-	mylog "Error: You must specify a server"
-	mylog "You can set it in the script or use the -S argument"
+	myerror "Error: You must specify a server"
+	myerror "You can set it in the script or use the -S argument"
 	exit 1
 }
 
@@ -200,8 +217,8 @@ function mycurl() {
 	fi
 		
 	[ $ret -ne 0 ] && {
-		mylog "Error: curl returned $ret"
-		mylog "Please refer to curl manpage for mor details"
+		myerror "Error: curl returned $ret"
+		myerror "Please refer to curl manpage for mor details"
 		cat $curlerr >&2
 		rm $curlerr $curloutput &>/dev/null
 		exit $ret
@@ -214,7 +231,7 @@ function mycurl() {
 			# Content-Type: application/json
 			ct=$(grep "^Content-Type:" $curloutput | awk '{print $2;}' | perl -pe "s/\r\n$//")
 			[ -z "$ct" -o "$ct" != "application/json" ] && {
-				mylog "Error: server returned code $code but with content-type '$ct' where 'application/json' is expected"
+				myerror "Error: server returned code $code but with content-type '$ct' where 'application/json' is expected"
 				rm $curlerr $curloutput &>/dev/null
 				exit 6
 			}
@@ -226,7 +243,7 @@ function mycurl() {
 			mycurl "$redirect" "$data"
 			;;
 		*) 
-			mylog "Error: server returned $code"
+			myerror "Error: server returned $code"
 			rm $curlerr $curloutput &>/dev/null
 			exit 5
 			;;
@@ -241,14 +258,14 @@ function post() {
 
 	testfile $file
 
-	echo >&2
+	[ $quiet -ne 1 ] && echo >&2
 
 	$rhino "$path/main.js" "$path/" put $file 2>&1 >$datafile &
 	pid=$!
 
 	dot=".  "
 	while ps $pid &>/dev/null; do
-		echo -n -e "\rEncrypting data$dot" >&2
+		[ $quiet -ne 1 ] && echo -n -e "\rEncrypting data$dot" >&2
 		case $dot in
 			".  ") dot=".. " ;;
 			".. ") dot="..." ;;
@@ -260,14 +277,14 @@ function post() {
 	wait $pid
 	ret=$?
 	[ $ret -ne 0 ] && {
-		echo -e "\rEncrypting data... [failed]" >&2
-		mylog "Error: rhino returned $ret"
+		[ $quiet -ne 1 ] && echo -e "\rEncrypting data... [failed]" >&2
+		myerror "Error: rhino returned $ret"
 		cat $datafile >&2
 		rm $datafile
 		exit $ret
 	}
 
-	echo -e "\rEncrypting data... [done]" >&2
+	[ $quiet -ne 1 ] && echo -e "\rEncrypting data... [done]" >&2
 
 	[ -f $tmpfile ] && rm $tmpfile
 
@@ -283,7 +300,7 @@ function post() {
 
 	status=$(tail -1 $curloutput | python -m json.tool 2>/dev/null | grep status | cut -d: -f2 | sed "s/ //g");
 	[ -z "$status" -o "$status" != "0" ] && {
-		mylog "something went wrong..."
+		myerror "something went wrong..."
 		cat $curloutput >&2
 		rm $curlerr $curloutput &>/dev/null
 		exit 4
@@ -305,14 +322,19 @@ function post() {
 
 function get() {
 
-	key=$(echo $get | sed -r "s/^.*\?.*#(.*)$/\1/")
+	echo $get | grep -E "^.*\?.*#(.+)$" &>/dev/null
+	[ $? -ne 0 ] && {
+		myerror "Error: missing key to decrypt data"
+		exit 7
+	}
+	key=$(echo $get | sed -r "s/^.*\?.*#(.+)$/\1/")
 	mycurl "$get"
 	str=$(grep "cipherdata" $curloutput)
 	rm $curlerr $curloutput &>/dev/null
 #	str=$(wget -q "$get" -O - | grep "cipherdata")
 	data=$(echo $str | grep ">\[.*\]<")
 	[ -z "$data" ] && {
-		mylog "Paste does not exist or is expired"
+		myerror "Paste does not exist or is expired"
 		exit 3
 	}
 	clean=$(echo $str | sed -r "s/^.*(\[.*)$/\1/;s/^(.*\]).*$/\1/")
@@ -323,7 +345,7 @@ function get() {
 
 	dot=".  "
 	while ps $pid &>/dev/null; do
-		echo -n -e "\rDecrypting data$dot" >&2
+		[ $quiet -ne 1 ] && echo -n -e "\rDecrypting data$dot" >&2
 		case $dot in
 			".  ") dot=".. " ;;
 			".. ") dot="..." ;;
@@ -335,14 +357,14 @@ function get() {
 	wait $pid
 	ret=$?
 	[ $ret -ne 0 ] && {
-		echo -e "\rDecrypting data... [failed]" >&2
-		mylog "Error: rhino returned $ret"
+		[ $quiet -ne 1 ] && echo -e "\rDecrypting data... [failed]" >&2
+		myerror "Error: rhino returned $ret"
 		cat $datafile >&2
 		rm $datafile
 		exit $ret
 	}
 
-	echo -e "\rDecrypting data... [done]" >&2
+	[ $quiet -ne 1 ] && echo -e "\rDecrypting data... [done]" >&2
 
 	cat $datafile
 	rm $datafile
