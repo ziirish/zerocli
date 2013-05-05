@@ -136,7 +136,7 @@ function testfile() {
 }
 
 # options may be followed by one colon to indicate they have a required argument
-options=$(getopt -o pqbose:f:g:S: -l put,quiet,burn,open,syntax,expire:,file:,get:,server:,config: -- "$@") || {
+options=$(getopt -o pqbose:f:g:S:c: -l put,quiet,burn,open,syntax,expire:,file:,get:,server:,config: -- "$@") || {
 	# something went wrong, getopt will put out an error message for us
 	usage
 }
@@ -179,7 +179,7 @@ do
 				myerror "Error: '$config' does not exist"
 				exit
 			}
-			. $"config"
+			. "$config"
 			;;
 		(--) shift; break ;;
 		(-*) myerror "$0: error - unrecognized option $1"; usage;;
@@ -224,7 +224,7 @@ function mycurl() {
 		exit $ret
 	}
 
-	code=$(grep -e "^HTTP/1\." $curloutput | awk '{print $2;}')
+	code=$(grep -e "^HTTP/1\." $curloutput | tail -1 | awk '{print $2;}')
 	case $code in
 		200)
 			[ -z "$data" ] && return
