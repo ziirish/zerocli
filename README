@@ -3,6 +3,10 @@ ZeroCli is a simple cli for ZeroBin
 It requires rhino to execute javascript in command line (as the encryption is
 done on client-side) : https://developer.mozilla.org/en-US/docs/Rhino
 
+Alternatively, you can now use v8 instead of rhino.
+To install it follow the instructions bellow:
+https://developers.google.com/v8/build
+
 zerocli.sh [options...] [files...]
 usage:
         -c, --config <file>   use this configuration file
