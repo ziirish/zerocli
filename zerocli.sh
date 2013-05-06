@@ -5,6 +5,7 @@ tmpfile="/tmp/.zerocli.tmp"
 datafile="/tmp/.zerocli.data"
 curloutput="/tmp/.zerocli.curl.out"
 curlerr="/tmp/.zerocli.curl.err"
+curltmp="/tmp/.zerocli.curl.tmp"
 server=""
 me=$(basename $0)
 path=$(dirname $0)
@@ -245,14 +246,16 @@ function mycurl() {
 			 $url)
 		ret=$?
 	else
+		echo "$data" >$curltmp
 		output=$($curl -i                                         \
 			 -H "Content-Type: application/x-www-form-urlencoded" \
 			 -X POST                                              \
-			 -d "$data"                                           \
+			 -d @$curltmp                                         \
 			 -o $curloutput                                       \
 			 --stderr $curlerr                                    \
 			 $url)
 		ret=$?
+		rm $curltmp
 	fi
 		
 	# check the return code
@@ -357,12 +360,10 @@ function post() {
 	[ $quiet -ne 1 ] && echo -e "\rEncrypting data... [done]" >&2
 
 	key=$(grep "key:" $datafile | sed "s/^key://")
-	data=$(grep "data:" $datafile | sed "s/^data://")
 
+	# we need to 'htmlencode' our data before posting them. We use this hack to handle large data
+	encode=$(perl -MURI::Escape -e '@f=<>; foreach (@f) { if (m/^data:/) { s/^data://; print uri_escape($_); exit(0); } }' $datafile)
 	rm $datafile
-
-	# we need to 'htmlencode' our data before posting them
-	encode=$(perl -MURI::Escape -e 'print uri_escape($ARGV[0]);' "$data")
 	params="data=$encode&burnafterreading=$burn&expire=$expire&opendiscussion=$open&syntaxcoloring=$syntax"
 
 	mycurl "$server" "$params"
