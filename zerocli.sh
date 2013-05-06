@@ -444,6 +444,9 @@ function get() {
 	exit 0
 }
 
+# ensure only you (and root) can read the temporary files
+umask 0077
+
 [ "$get" != "0" ] && get
 
 >$tmpfile

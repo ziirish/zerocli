@@ -67,7 +67,7 @@ EOF
 }
 
 # DO NOT EDIT THE FOLLOWING LINE!
-package='H4sIAJa5h1EAA+w8a3vaRrr5Cr9idk+3hnCTuNnGdXqSNOl62yQ9iXvZejl+BAwgAxLRxcZu/d/3
+package='H4sIAIO9h1EAA+w8a3vaRrr5Cr9idk+3hnCTuNnGdXqSNOl62yQ9iXvZejl+BAwgAxLRxcZu/d/3
 vcxIIySI2910n31amlow897mvc9IsHJcr3kVPvqYLwte/W4Xr/ZhzzKv+Gq3re4ju2137cNO+9Bu
 P7Js67DXfSSsjyqVesVh5ARCPBpJ72of3Ifm/0tfb52bL+R06URSnIqf7k/K5SW8cYJZvJJeFDaX
 0ptFcxh2p6KyFJ8Juyp+KpfWgetFlYNXbhi63kwAkOvJPx1UT8ql97EbVWx4d18u87hJ8MIaGsTa
@@ -987,6 +987,9 @@ function get() {
 
 	exit 0
 }
+
+# ensure only you (and root) can read the temporary files
+umask 0077
 
 [ "$get" != "0" ] && get
 
