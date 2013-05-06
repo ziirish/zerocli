@@ -1,17 +1,23 @@
 ZeroCli is a simple cli for ZeroBin
 
 It requires rhino to execute javascript in command line (as the encryption is
-on client-side) : https://developer.mozilla.org/en-US/docs/Rhino
+done on client-side) : https://developer.mozilla.org/en-US/docs/Rhino
 
+zerocli.sh [options...] [files...]
 usage:
-	-b, --burn            burn after reading
-	-o, --open            open discussion
-	-s, --syntax          syntax coloring
-	-e, --expire <time>   specify the expiration time (default: 1week)
-	-f, --file <file>     file to send (default: read from stdin)
-	-g, --get <url>       get data from URL
-	-p, --post            post data to server
-	-S, --server <server> specify the server url
+        -c, --config <file>   use this configuration file
+        -q, --quiet           do not display logs
+        -b, --burn            burn after reading
+        -o, --open            open discussion
+        -s, --syntax          syntax coloring
+        -e, --expire <time>   specify the expiration time (default: 1week)
+        -f, --file <file>     file to send, you can have multiple (default: read from stdin)
+        -g, --get <url>       get data from URL
+        -G, --group           group all the specified files
+        -p, --post            post data to server (it is the default behaviour)
+        -S, --server <server> specify the server url
+        -t, --ttw             time to wait between two posts (default: 10)
+        -h, --help            prints this menu and exit
 
 available time settings:
 5min,10min,1hour,1day,1week,1month,1year,never
@@ -24,3 +30,5 @@ Features:
 	A zerocli.conf is given in example
 	- You can build a self-extractible script using compact.sh. This will extract the required
 	files in your working directory (if set) or in your script's directory
+	- You can send multiple files
+		* with the -G option all the files will be send together as one file
