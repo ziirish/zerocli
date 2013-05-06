@@ -1,11 +1,10 @@
 #!/bin/bash
 
-version="0.3"
+version="0.4"
 tmpfile="/tmp/.zerocli.tmp"
 datafile="/tmp/.zerocli.data"
 curloutput="/tmp/.zerocli.curl.out"
 curlerr="/tmp/.zerocli.curl.err"
-curltmp="/tmp/.zerocli.curl.tmp"
 server=""
 me=$(basename $0)
 path=$(dirname $0)
@@ -26,7 +25,7 @@ atime="5min 10min 1hour 1day 1week 1month 1year never"
 engine=$(which rhino)
 engineopts="rhino"
 
-# search fo a config file and load it if present
+# search for a config file and load it if present
 if [ -d "$path" -a -e "$path/zerocli.conf" ]; then
 	. "$path/zerocli.conf"
 fi
@@ -199,7 +198,7 @@ do
 				fi
 			done
 			[ $t -ne 1 ] && {
-				myerror "Error: '$expire' is not a valide expiration time"
+				myerror "Error: '$expire' is not a valid expiration time"
 				exit 1
 			}
 			;;
@@ -247,16 +246,14 @@ function mycurl() {
 			 $url)
 		ret=$?
 	else
-		echo "$data" >$curltmp
-		output=$($curl -i                                         \
+		output=$(echo -n "$data" | $curl -i                       \
 			 -H "Content-Type: application/x-www-form-urlencoded" \
 			 -X POST                                              \
-			 -d @$curltmp                                         \
+			 -d @-                                                \
 			 -o $curloutput                                       \
 			 --stderr $curlerr                                    \
 			 $url)
 		ret=$?
-		rm $curltmp
 	fi
 		
 	# check the return code
@@ -277,6 +274,7 @@ function mycurl() {
 			ct=$(grep "^Content-Type:" $curloutput | awk '{print $2;}' | perl -pe "s/\r\n$//")
 			[ -z "$ct" -o "$ct" != "application/json" ] && {
 				myerror "Error: server returned code $code but with content-type '$ct' where 'application/json' is expected"
+#				cat $curloutput >&2
 				rm $curlerr $curloutput &>/dev/null
 				exit 6
 			}
@@ -289,6 +287,7 @@ function mycurl() {
 			;;
 		*) 
 			myerror "Error: server returned $code"
+			myerror "Please read this page for more details about HTTP return code: http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html"
 			rm $curlerr $curloutput &>/dev/null
 			exit 5
 			;;
@@ -410,9 +409,9 @@ function get() {
 		exit 3
 	}
 	clean=$(echo $str | sed -r "s/^.*(\[.*)$/\1/;s/^(.*\]).*$/\1/")
-	data=$(echo $clean | sed -r "s/^.*data\":(.*),\"meta.*$/\1/;s/\\\\//g;s/^.//;s/.$//")
+	echo $clean | sed -r "s/^.*data\":(.*),\"meta.*$/\1/;s/\\\\//g;s/^[^{]*//;s/[^}]*$//;s/\s*$//" >$tmpfile
 
-	$engine "$path/main.js" $engineopts "$path/" "get" "$key" "$data" 2>&1 >$datafile &
+	$engine "$path/main.js" $engineopts "$path/" "get" "$key" "$tmpfile" 2>&1 >$datafile &
 	pid=$!
 
 	dot=".  "
@@ -428,6 +427,7 @@ function get() {
 
 	wait $pid
 	ret=$?
+	rm $tmpfile
 	[ $ret -ne 0 ] && {
 		[ $quiet -ne 1 ] && echo -e "\rDecrypting data... [failed]" >&2
 		myerror "Error: javascript engine returned $ret"

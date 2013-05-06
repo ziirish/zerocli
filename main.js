@@ -53,8 +53,16 @@ if (method == "post") {
 	}
 
 	key = arguments[3];
-	data = arguments[4];
+	datafile = arguments[4];
 
+	if (engine == "rhino") {
+		data = readFile(datafile);
+	} else if (engine == "v8") {
+		data = read(datafile);
+	} else {
+		print('Wrong engine!');
+		quit(8);
+	}
 	/*
 	print('key: '+key);
 	print('data: '+data);
