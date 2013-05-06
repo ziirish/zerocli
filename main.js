@@ -3,11 +3,18 @@ RawDeflate = {};
 l = arguments.length;
 
 if (l < 1) {
-	print('Missing path!');
+	print('Missing engine!');
 	quit(1);
 }
 
-path = arguments[0];
+engine = arguments[0];
+
+if (l < 2) {
+	print('Missing path!');
+	quit(2);
+}
+
+path = arguments[1];
 
 load(path+'js/sjcl.js');
 load(path+'js/base64.js');
@@ -15,31 +22,38 @@ load(path+'js/rawinflate.js');
 load(path+'js/rawdeflate.js');
 load(path+'js/zerocli.js');
 
-if (l < 2) {
+if (l < 3) {
 	print('Missing method!');
-	quit(2);
+	quit(3);
 }
 
-method = arguments[1];
+method = arguments[2];
 
-if (method == "put") {
-	if (l != 3) {
-		print('Missing filename!');
-		quit(3);
-	}
-
-	filename = arguments[2];
-	t = readFile(filename);
-	//print('data: ' + t);
-	encrypt_data(t);
-} else if (method == "get") {
+if (method == "post") {
 	if (l != 4) {
-		print('Missing key and/or message');
+		print('Missing filename!');
 		quit(4);
 	}
 
-	key = arguments[2];
-	data = arguments[3];
+	filename = arguments[3];
+	if (engine == "rhino") {
+		t = readFile(filename);
+	} else if (engine == "v8") {
+		t = read(filename);
+	} else {
+		print('Wrong engine!');
+		quit(8);
+	}
+	//print('data: ' + t);
+	encrypt_data(t);
+} else if (method == "get") {
+	if (l != 5) {
+		print('Missing key and/or message');
+		quit(5);
+	}
+
+	key = arguments[3];
+	data = arguments[4];
 
 	/*
 	print('key: '+key);
@@ -47,4 +61,7 @@ if (method == "put") {
 	*/
 
 	print(decrypt_data(key, data));
+} else {
+	print('Wrong method!');
+	quit(6);
 }

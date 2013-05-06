@@ -1,6 +1,6 @@
 #!/bin/bash
 
-version="0.2"
+version="0.3"
 tmpfile="/tmp/.zerocli.tmp"
 datafile="/tmp/.zerocli.data"
 curloutput="/tmp/.zerocli.curl.out"
@@ -23,6 +23,8 @@ quiet=0
 group=0
 file=""
 atime="5min 10min 1hour 1day 1week 1month 1year never"
+engine=$(which rhino)
+engineopts="rhino"
 
 # search fo a config file and load it if present
 if [ -d "$path" -a -e "$path/zerocli.conf" ]; then
@@ -68,35 +70,34 @@ EOF
 # DO NOT EDIT THE FOLLOWING LINE!
 package=""
 
-# Check for rhino
-rhino=$(which rhino)
-[ ! -x "$rhino" ] && {
-	echo "Please install rhino first"
-	echo "https://developer.mozilla.org/en-US/docs/Rhino"
+[ ! -x "$engine" ] && {
+	myerror "Error: '$engine' not found or not executable"
 	exit 1
 }
 
 # Check for curl
 curl=$(which curl)
 [ ! -x "$curl" ] && {
-	echo "Please install curl"
+	myerror "Please install curl"
 	exit 1
 }
 
 # function to extract the archive contained in $package (you can generate a self extractible archive using the compact.sh script)
 function unpak() {
 	[ -z "$package" ] && return
-	required="js/zerocli.js js/base64.js js/flate.js js/jquery.js js/rawdeflate.js js/rawinflate.js js/sjcl.js main.js VERSION"
+	required="js/zerocli.js js/base64.js js/flate.js js/rawdeflate.js js/rawinflate.js js/sjcl.js main.js VERSION"
 	br=0
 	for f in $required; do
 		[ ! -f "$path/$f" ] && {
+			mylog "missing '$path/$f'"
 			rm -rf "$path/main.js" "$path/js" "$path/VERSION" &>/dev/null
 			br=1
 			break
 		}
 	done
-	v=$(cat VERSION 2>/dev/null)
+	v=$(cat $path/VERSION 2>/dev/null)
 	[ $br -eq 0 -a "$v" = "$version" ] && return
+	mylog "Extracting files '$v' -> '$version'"
 	# if $br = 1 or version mismatch at least 1 file is missing so we unpack the archive
 	sav=$PWD
 	cd $path || exit $?
@@ -329,10 +330,10 @@ function post() {
 
 	testfile $myfile
 	
-	[ $quiet -ne 1 ] && echo >&2
-
-	$rhino "$path/main.js" "$path/" put $myfile 2>&1 >$datafile &
+	$engine "$path/main.js" $engineopts "$path/" "post" "$myfile" 2>&1 >$datafile &
 	pid=$!
+
+	[ $quiet -ne 1 ] && echo >&2
 
 	dot=".  "
 	while ps $pid &>/dev/null; do
@@ -351,7 +352,7 @@ function post() {
 	ret=$?
 	[ $ret -ne 0 ] && {
 		[ $quiet -ne 1 ] && echo -e "\rEncrypting data... [failed]" >&2
-		myerror "Error: rhino returned $ret"
+		myerror "Error: javascript engine returned $ret"
 		cat $datafile >&2
 		rm $datafile
 		exit $ret
@@ -411,7 +412,7 @@ function get() {
 	clean=$(echo $str | sed -r "s/^.*(\[.*)$/\1/;s/^(.*\]).*$/\1/")
 	data=$(echo $clean | sed -r "s/^.*data\":(.*),\"meta.*$/\1/;s/\\\\//g;s/^.//;s/.$//")
 
-	$rhino "$path/main.js" "$path/" get "$key" "$data" 2>&1 >$datafile &
+	$engine "$path/main.js" $engineopts "$path/" "get" "$key" "$data" 2>&1 >$datafile &
 	pid=$!
 
 	dot=".  "
@@ -429,7 +430,7 @@ function get() {
 	ret=$?
 	[ $ret -ne 0 ] && {
 		[ $quiet -ne 1 ] && echo -e "\rDecrypting data... [failed]" >&2
-		myerror "Error: rhino returned $ret"
+		myerror "Error: javascript engine returned $ret"
 		cat $datafile >&2
 		rm $datafile
 		exit $ret
