@@ -11,6 +11,7 @@ path=$(dirname $0)
 workingdir=""
 config=""
 
+ttw=10
 burn=0
 open=0
 syntax=0
@@ -18,8 +19,11 @@ expire=1week
 get=0
 post=1
 quiet=0
+group=0
 file=""
+atime="5min 10min 1hour 1day 1week 1month 1year never"
 
+# search fo a config file and load it if present
 if [ -d "$path" -a -e "$path/zerocli.conf" ]; then
 	. "$path/zerocli.conf"
 fi
@@ -32,30 +36,33 @@ if [ -f "$HOME/.zeroclirc" ]; then
 	. "$HOME/.zeroclirc"
 fi
 
-if [ ! -z "$workingdir" ]; then
-	[ ! -d "$workingdir" ] && {
-		cat <<EOF
+# set the path variable based on the $workingdir variable
+function setpath() {
+	if [ ! -z "$workingdir" ]; then
+		[ ! -d "$workingdir" ] && {
+			cat <<EOF
 Error: '$workingdir' no such directory
 EOF
-		exit 1
-	}   
-	path=$workingdir
-else
-	if [ "$path" != "." ]; then
-		echo $path | grep -e "^/" &>/dev/null || {
-			path=$(which $me)
-			[ -z "$path" ] && {
-				cat <<EOF
+			exit 1
+		}   
+		path=$workingdir
+	else
+		if [ "$path" != "." ]; then
+			echo $path | grep -e "^/" &>/dev/null || {
+				path=$(which $me)
+				[ -z "$path" ] && {
+					cat <<EOF
 Error: no working dir found
 You can solve this problem either by calling this program with an absolute path
 or by adding the script to your PATH or by setting up the 'workingdir' variable
 into the script or conf file
 EOF
-				exit 1
+					exit 1
+				}   
 			}   
-		}   
-	fi  
-fi
+		fi  
+	fi
+}
 
 # DO NOT EDIT THE FOLLOWING LINE!
 package=""
@@ -75,6 +82,7 @@ curl=$(which curl)
 	exit 1
 }
 
+# function to extract the archive contained in $package (you can generate a self extractible archive using the compact.sh script)
 function unpak() {
 	[ -z "$package" ] && return
 	required="js/zerocli.js js/base64.js js/flate.js js/jquery.js js/rawdeflate.js js/rawinflate.js js/sjcl.js main.js VERSION"
@@ -88,7 +96,7 @@ function unpak() {
 	done
 	v=$(cat VERSION 2>/dev/null)
 	[ $br -eq 0 -a "$v" = "$version" ] && return
-	# if $br = 1 or version missmatch at least 1 file is missing so we unpack the archive
+	# if $br = 1 or version mismatch at least 1 file is missing so we unpack the archive
 	sav=$PWD
 	cd $path || exit $?
 	echo "$package" | base64 -d >package.tgz
@@ -97,16 +105,20 @@ function unpak() {
 	cd $sav
 }
 
+# prints a log unless $quiet = 1
 function mylog() {
 	[ $quiet -ne 1 ] && echo "[i] $*" >&2
 }
 
+# prints error in all cases
 function myerror() {
 	echo "[e] $*" >&2
 }
 
+# prints the help menu and exit
 function usage() {
 	cat <<EOF
+$me [options...] [files...]
 usage:
 	-c, --config <file>   use this configuration file
 	-q, --quiet           do not display logs
@@ -114,10 +126,13 @@ usage:
 	-o, --open            open discussion
 	-s, --syntax          syntax coloring
 	-e, --expire <time>   specify the expiration time (default: 1week)
-	-f, --file <file>     file to send (default: read from stdin)
+	-f, --file <file>     file to send, you can have multiple (default: read from stdin)
 	-g, --get <url>       get data from URL
-	-p, --post            post data to server
+	-G, --group           group all the specified files
+	-p, --post            post data to server (it is the default behaviour)
 	-S, --server <server> specify the server url
+	-t, --ttw             time to wait between two posts (default: 10)
+	-h, --help            prints this menu and exit
 
 available time settings:
 5min,10min,1hour,1day,1week,1month,1year,never
@@ -125,6 +140,7 @@ EOF
 	exit 1
 }
 
+# check if the file we want to send is not empty
 function testfile() {
 	file=$1
 	size=$(ls -l $file | awk '{print $5; }')
@@ -136,7 +152,7 @@ function testfile() {
 }
 
 # options may be followed by one colon to indicate they have a required argument
-options=$(getopt -o pqbose:f:g:S:c: -l put,quiet,burn,open,syntax,expire:,file:,get:,server:,config: -- "$@") || {
+options=$(getopt -n "$me" -o "Ghpqbose:f:g:S:c:t::" -l "group,help,put,quiet,burn,open,syntax,expire:,file:,get:,server:,config:,ttw::" -- "$@") || {
 	# something went wrong, getopt will put out an error message for us
 	usage
 }
@@ -167,11 +183,28 @@ do
 		-o|--open) open=1 ;;
 		-s|--syntax) syntax=1 ;;
 		-p|--post) post=1 ;;
+		-h|--help) usage ;;
+		-G|--group) group=1 ;;
 		# for options with required arguments, an additional shift is required
-		-e|--expire) expire=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
-		-f|--file) file=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
+		-e|--expire) 
+			expire=$(echo $2 | sed "s/^.//;s/.$//")
+			shift
+			t=0
+			for e in $atime; do
+				if [ "$expire" = "$e" ]; then
+					t=1
+					break
+				fi
+			done
+			[ $t -ne 1 ] && {
+				myerror "Error: '$expire' is not a valide expiration time"
+				exit 1
+			}
+			;;
+		-f|--file) file="$file $2" ; shift ;; #$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
 		-g|--get) get=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
 		-S|--server) server=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
+		-t|--ttw) ttw=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
 		-c|--config) 
 			config=$(echo $2 | sed "s/^.//;s/.$//")
 			shift
@@ -182,20 +215,26 @@ do
 			. "$config"
 			;;
 		(--) shift; break ;;
-		(-*) myerror "$0: error - unrecognized option $1"; usage;;
+		(-*) myerror "$me: error - unrecognized option $1"; usage ;;
 		(*) break ;;
 	esac
 	shift
 done
 
+for arg do file="$file $arg" ; done
+
+setpath
+
 unpak
 
+# verify we have a server address to post data
 [ -z "$server" -a "$get" = "0" ] && {
-	myerror "Error: You must specify a server"
-	myerror "You can set it in the script or use the -S argument"
+	myerror "Error: You must specify a server in order to post data"
+	myerror "You can set it in the script or use the -S argument or the config file"
 	exit 1
 }
 
+# function that post or get data using curl
 function mycurl() {
 	url=$1
 	data=$2
@@ -216,19 +255,21 @@ function mycurl() {
 		ret=$?
 	fi
 		
+	# check the return code
 	[ $ret -ne 0 ] && {
 		myerror "Error: curl returned $ret"
-		myerror "Please refer to curl manpage for mor details"
+		myerror "Please refer to curl manpage for more details"
 		cat $curlerr >&2
 		rm $curlerr $curloutput &>/dev/null
 		exit $ret
 	}
 
+	# check the HTTP return code
 	code=$(grep -e "^HTTP/1\." $curloutput | tail -1 | awk '{print $2;}')
 	case $code in
 		200)
 			[ -z "$data" ] && return
-			# Content-Type: application/json
+			# When we post data, we expect the Content-Type to be application/json
 			ct=$(grep "^Content-Type:" $curloutput | awk '{print $2;}' | perl -pe "s/\r\n$//")
 			[ -z "$ct" -o "$ct" != "application/json" ] && {
 				myerror "Error: server returned code $code but with content-type '$ct' where 'application/json' is expected"
@@ -250,17 +291,44 @@ function mycurl() {
 	esac
 }
 
+# function that post data
+# it cat take a list of file as argument and will send them recursively
 function post() {
-	[ -z "$file" ] && {
+	myfile=$1
+	[ -z "$myfile" ] && {
 		cat >$tmpfile <&0
-		file=$tmpfile
+		myfile=$tmpfile
 	}
 
-	testfile $file
+	i=0
+	for f in $myfile; do
+		i=$(($i+1))
+		[ $i -eq 2 ] && break
+	done
 
+	[ $i -eq 2 ] && {
+		for f in $myfile; do
+			if [ $group -eq 0 ]; then
+				post $f
+				# by default ZeroBin expect us to wait 10s between each post
+				mylog "waiting $ttw seconds before next post"
+				sleep $ttw
+			else
+				tmp=$(echo $f | sed "s/^.//;s/.$//")
+				cat $tmp >>$tmpfile
+				myfile=$tmpfile
+			fi
+		done
+		[ $group -eq 0 ] && return
+	}
+
+	[ "$myfile" != "$tmpfile" ] && myfile=$(echo $myfile | sed "s/^.//;s/.$//")
+
+	testfile $myfile
+	
 	[ $quiet -ne 1 ] && echo >&2
 
-	$rhino "$path/main.js" "$path/" put $file 2>&1 >$datafile &
+	$rhino "$path/main.js" "$path/" put $myfile 2>&1 >$datafile &
 	pid=$!
 
 	dot=".  "
@@ -274,6 +342,8 @@ function post() {
 		sleep 1
 	done
 
+	[ -f $tmpfile ] && rm $tmpfile
+
 	wait $pid
 	ret=$?
 	[ $ret -ne 0 ] && {
@@ -286,13 +356,12 @@ function post() {
 
 	[ $quiet -ne 1 ] && echo -e "\rEncrypting data... [done]" >&2
 
-	[ -f $tmpfile ] && rm $tmpfile
-
 	key=$(grep "key:" $datafile | sed "s/^key://")
 	data=$(grep "data:" $datafile | sed "s/^data://")
 
 	rm $datafile
 
+	# we need to 'htmlencode' our data before posting them
 	encode=$(perl -MURI::Escape -e 'print uri_escape($ARGV[0]);' "$data")
 	params="data=$encode&burnafterreading=$burn&expire=$expire&opendiscussion=$open&syntaxcoloring=$syntax"
 
@@ -311,13 +380,15 @@ function post() {
 	# add a / in server if not present
 	server=$(echo $server | sed -r "s|^(.+[^/])$|\1/|")
 
-	echo "Your data have been successfully pasted"
+	if [ "$myfile" = "$tmpfile" ]; then
+		echo "Your data have been successfully pasted"
+	else
+		echo "The file '$myfile' has been successfully pasted"
+	fi
 	echo "url: $server?$id#$key"
 	echo "delete url: $server?pasteid=$id&deletetoken=$deletetoken"
 
 	rm $curlerr $curloutput &>/dev/null
-
-	exit 0
 }
 
 function get() {
@@ -331,10 +402,9 @@ function get() {
 	mycurl "$get"
 	str=$(grep "cipherdata" $curloutput)
 	rm $curlerr $curloutput &>/dev/null
-#	str=$(wget -q "$get" -O - | grep "cipherdata")
 	data=$(echo $str | grep ">\[.*\]<")
 	[ -z "$data" ] && {
-		myerror "Paste does not exist or is expired"
+		myerror "Paste does not exist is expired or has been removed"
 		exit 3
 	}
 	clean=$(echo $str | sed -r "s/^.*(\[.*)$/\1/;s/^(.*\]).*$/\1/")
@@ -373,6 +443,9 @@ function get() {
 }
 
 [ "$get" != "0" ] && get
-[ "$post" = "1" ] && post
+
+>$tmpfile
+
+[ "$post" = "1" ] && post "$file"
 
 exit 0
