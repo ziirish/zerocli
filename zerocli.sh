@@ -368,15 +368,15 @@ function post() {
 
 	mycurl "$server" "$params"
 
-	status=$(tail -1 $curloutput | python -m json.tool 2>/dev/null | grep status | cut -d: -f2 | sed "s/ //g");
+	status=$(tail -1 $curloutput | sed -r 's/^.*"status":([0-9]).*$/\1/');
 	[ -z "$status" -o "$status" != "0" ] && {
 		myerror "something went wrong..."
 		cat $curloutput >&2
 		rm $curlerr $curloutput &>/dev/null
 		exit 4
 	}
-	id=$(tail -1 $curloutput | python -m json.tool | grep id | cut -d: -f2 | sed "s/ //g;s/,//g;s/\"//g");
-	deletetoken=$(tail -1 $curloutput | python -m json.tool | grep deletetoken | cut -d: -f2 | sed "s/ //g;s/,//g;s/\"//g");
+	id=$(tail -1 $curloutput | sed -r 's/^.*"id":"([^"]+)".*$/\1/');
+	deletetoken=$(tail -1 $curloutput | sed -r 's/^.*"deletetoken":"([^"]+)".*$/\1/');
 
 	# add a / in server if not present
 	server=$(echo $server | sed -r "s|^(.+[^/])$|\1/|")
