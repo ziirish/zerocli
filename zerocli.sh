@@ -202,7 +202,7 @@ do
 				exit 1
 			}
 			;;
-		-f|--file) file="$file $2" ; shift ;; #$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
+		-f|--file) [ -z "$file" ] && file="$2" || file="$file $2"; shift ;;
 		-g|--get) get=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
 		-S|--server) server=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
 		-t|--ttw) ttw=$(echo $2 | sed "s/^.//;s/.$//") ; shift ;;
@@ -222,7 +222,7 @@ do
 	shift
 done
 
-for arg do file="$file $arg" ; done
+for arg; do [ -z "${file}" ] && file="$arg" || file="$file $arg"; done
 
 setpath
 
@@ -324,8 +324,6 @@ function post() {
 		done
 		[ $group -eq 0 ] && return
 	}
-
-	[ "$myfile" != "$tmpfile" ] && myfile=$(echo $myfile | sed "s/^.//;s/.$//")
 
 	testfile $myfile
 	
