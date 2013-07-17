@@ -25,6 +25,8 @@ atime="5min 10min 1hour 1day 1week 1month 1year never"
 engine=$(which rhino)
 engineopts="rhino"
 
+_pwd=$PWD
+
 # search for a config file and load it if present
 if [ -d "$path" -a -e "$path/zerocli.conf" ]; then
 	. "$path/zerocli.conf"
@@ -294,6 +296,34 @@ function mycurl() {
 	esac
 }
 
+function _loading () {
+	pid=$1
+	msg=$2
+	dot=".  "
+	while ps $pid &>/dev/null; do
+		[ $quiet -ne 1 ] && echo -n -e "\r$msg$dot" >&2
+		case $dot in
+			".  ") dot=".. " ;;
+			".. ") dot="..." ;;
+			"...") dot=".  " ;;
+		esac
+		sleep 1
+	done
+
+	wait $pid
+	ret=$?
+	rm $tmpfile &>/dev/null
+	[ $ret -ne 0 ] && {
+		[ $quiet -ne 1 ] && echo -e "\r$msg... [failed]" >&2
+		myerror "Error: javascript engine returned code $ret"
+		cat $datafile >&2
+		rm $datafile &>/dev/null
+		exit $ret
+	}
+
+	[ $quiet -ne 1 ] && echo -e "\r$msg... [done]" >&2
+}
+
 # function that post data
 # it cat take a list of file as argument and will send them recursively
 function post() {
@@ -325,37 +355,16 @@ function post() {
 		[ $group -eq 0 ] && return
 	}
 
-	testfile $myfile
+	myfile=$(echo $myfile | sed -r "s/^'(.+)'$/\1/")
+	[ ${myfile:0:1} = "/" ] && mfile=$myfile || mfile=$_pwd/$myfile
+	testfile $mfile
 	
-	$engine "$path/main.js" $engineopts "$path/" "post" "$myfile" 2>&1 >$datafile &
+	$engine "$path/main.js" $engineopts "$path/" "post" "$mfile" 2>&1 >$datafile &
 	pid=$!
 
 	[ $quiet -ne 1 ] && echo >&2
 
-	dot=".  "
-	while ps $pid &>/dev/null; do
-		[ $quiet -ne 1 ] && echo -n -e "\rEncrypting data$dot" >&2
-		case $dot in
-			".  ") dot=".. " ;;
-			".. ") dot="..." ;;
-			"...") dot=".  " ;;
-		esac
-		sleep 1
-	done
-
-	[ -f $tmpfile ] && rm $tmpfile
-
-	wait $pid
-	ret=$?
-	[ $ret -ne 0 ] && {
-		[ $quiet -ne 1 ] && echo -e "\rEncrypting data... [failed]" >&2
-		myerror "Error: javascript engine returned $ret"
-		cat $datafile >&2
-		rm $datafile
-		exit $ret
-	}
-
-	[ $quiet -ne 1 ] && echo -e "\rEncrypting data... [done]" >&2
+	_loading $pid "Encrypting data"
 
 	key=$(grep "key:" $datafile | sed "s/^key://")
 
@@ -391,7 +400,6 @@ function post() {
 }
 
 function get() {
-
 	echo $get | grep -E "^.*\?.*#(.+)$" &>/dev/null
 	[ $? -ne 0 ] && {
 		myerror "Error: missing key to decrypt data"
@@ -412,29 +420,7 @@ function get() {
 	$engine "$path/main.js" $engineopts "$path/" "get" "$key" "$tmpfile" 2>&1 >$datafile &
 	pid=$!
 
-	dot=".  "
-	while ps $pid &>/dev/null; do
-		[ $quiet -ne 1 ] && echo -n -e "\rDecrypting data$dot" >&2
-		case $dot in
-			".  ") dot=".. " ;;
-			".. ") dot="..." ;;
-			"...") dot=".  " ;;
-		esac
-		sleep 1
-	done
-
-	wait $pid
-	ret=$?
-	rm $tmpfile
-	[ $ret -ne 0 ] && {
-		[ $quiet -ne 1 ] && echo -e "\rDecrypting data... [failed]" >&2
-		myerror "Error: javascript engine returned $ret"
-		cat $datafile >&2
-		rm $datafile
-		exit $ret
-	}
-
-	[ $quiet -ne 1 ] && echo -e "\rDecrypting data... [done]" >&2
+	_loading $pid "Decrypting data"
 
 	cat $datafile
 	rm $datafile
