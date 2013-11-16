@@ -68,6 +68,11 @@ EOF
 	fi
 }
 
+# prints error in all cases
+function myerror() {
+	echo "[e] $*" >&2
+}
+
 # DO NOT EDIT THE FOLLOWING LINE!
 package=""
 
@@ -111,11 +116,6 @@ function unpak() {
 # prints a log unless $quiet = 1
 function mylog() {
 	[ $quiet -ne 1 ] && echo "[i] $*" >&2
-}
-
-# prints error in all cases
-function myerror() {
-	echo "[e] $*" >&2
 }
 
 # prints the help menu and exit
