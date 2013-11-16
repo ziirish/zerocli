@@ -68,8 +68,18 @@ EOF
 	fi
 }
 
+# prints error in all cases
+function myerror() {
+	echo "[e] $*" >&2
+}
+
+# prints a log unless $quiet = 1
+function mylog() {
+	[ $quiet -ne 1 ] && echo "[i] $*" >&2
+}
+
 # DO NOT EDIT THE FOLLOWING LINE!
-package='H4sIAAlT5lEAA+w7aZfaxpb+mv4VmHNCVC1BowWaRlT72HFe4mxO7CRv3jDwTkkqLSCWgDq2A/z3
+package='H4sIANmwh1IAA+w7aZfaxpb+mv4VmHNCVC1BowWaRlT72HFe4mxO7CRv3jDwTkkqLSCWgDq2A/z3
 ubdKSwnotjNnnDlzEmyrVPvd761b8oIly85s++hj/rrw6/cdLM3rnqWW+LOsrvPItEzHvLb7XRPa
 Tcvq9x41uh8Vqvx3t83YptF49HuSbJJtfO+49/X/P/29Ym+e8zBlGW/Qxu7gXlyk8MI20d2CL7Nt
 J+XLKIuhOQkbWtoYNUzS2F18st4ky0z77Ltku02WUQMGJUv++DPiXnzy612SaSa8HS4uZLu64Lg7
@@ -638,16 +648,6 @@ function unpak() {
 	tar xzf package.tgz
 	rm package.tgz
 	cd $sav
-}
-
-# prints a log unless $quiet = 1
-function mylog() {
-	[ $quiet -ne 1 ] && echo "[i] $*" >&2
-}
-
-# prints error in all cases
-function myerror() {
-	echo "[e] $*" >&2
 }
 
 # prints the help menu and exit
