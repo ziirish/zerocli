@@ -1,20 +1,20 @@
-RawDeflate = {};
+var RawDeflate = {};
 
-l = arguments.length;
+var l = arguments.length;
 
 if (l < 1) {
 	print('Missing engine!');
 	quit(1);
 }
 
-engine = arguments[0];
+var engine = arguments[0];
 
 if (l < 2) {
 	print('Missing path!');
 	quit(2);
 }
 
-path = arguments[1];
+var path = arguments[1];
 
 load(path+'js/sjcl.js');
 load(path+'js/base64.js');
@@ -27,7 +27,7 @@ if (l < 3) {
 	quit(3);
 }
 
-method = arguments[2];
+var method = arguments[2];
 
 if (method == "post") {
 	if (l != 4) {
@@ -35,7 +35,8 @@ if (method == "post") {
 		quit(4);
 	}
 
-	filename = arguments[3];
+	var filename = arguments[3];
+	var t = '';
 	if (engine == "rhino") {
 		t = readFile(filename);
 	} else if (engine == "v8") {
@@ -52,8 +53,9 @@ if (method == "post") {
 		quit(5);
 	}
 
-	key = arguments[3];
-	datafile = arguments[4];
+	var key = arguments[3];
+	var datafile = arguments[4];
+	var data = '';
 
 	if (engine == "rhino") {
 		data = readFile(datafile);
